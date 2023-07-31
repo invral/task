@@ -1,5 +1,4 @@
-env: "envLocal"
-#storage_path: "./storage.db"
+#env: "envLocal"
 http_server:
   address: "localhost:7777"
   timeout: 4s
@@ -14,3 +13,4 @@ storage:
   database: "postgres"
   username: "postgres"
   password: "postgres"
+context_timeout: 10s

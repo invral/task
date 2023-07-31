@@ -1,16 +1,14 @@
 package main
 
 import (
+	"context"
 	"golang.org/x/exp/slog"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"task/common"
 	"task/internal/api/server"
-)
-
-const (
-	envLocal = "local"
-	envDev   = "dev"
-	envProd  = "prod"
 )
 
 func main() {
@@ -22,7 +20,6 @@ func main() {
 		logger.Error("cannot create dependency injection container", slog.String("error", err.Error()))
 		return
 	}
-	//_ = di
 
 	apiServer := server.NewServer(di)
 
@@ -31,7 +28,10 @@ func main() {
 		logger.Error("cannot create http handler", slog.String("error", err.Error()))
 	}
 
-	server := http.Server{
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+
+	srv := http.Server{
 		Addr:              di.Config.Address,
 		Handler:           handler,
 		ReadHeaderTimeout: di.Config.ReadHeaderTimeout,
@@ -41,7 +41,23 @@ func main() {
 
 	logger.Info("Server is running", slog.String("address", di.Config.Address))
 
-	if err := server.ListenAndServe(); err != nil {
+	if err := srv.ListenAndServe(); err != nil {
 		logger.Error("server stopped", slog.String("error", err.Error()))
 	}
+
+	<-done
+	logger.Info("stopping server")
+
+	// TODO: move timeout to config
+	ctx, cancel := context.WithTimeout(context.Background(), di.Config.ContextTimeout)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		logger.Error("failed to stop server", err)
+		return
+	}
+
+	di.Pool.Close()
+
+	logger.Info("server stopped")
 }

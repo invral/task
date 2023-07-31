@@ -9,10 +9,11 @@ import (
 )
 
 type Config struct {
-	Env           string `yaml:"env" env-default:"local"`
+	//Env           string `yaml:"env" env-default:"local"`
 	StorageConfig `yaml:"storage"`
 	//StoragePath string `yaml:"storage_path" env-required:"true"`
-	HTTPServer `yaml:"http_server"`
+	HTTPServer     `yaml:"http_server"`
+	ContextTimeout time.Duration `yaml:"context_timeout" env-default:"5s"`
 }
 
 type StorageConfig struct {
