@@ -35,7 +35,6 @@ type HTTPServer struct {
 }
 
 func (sc *StorageConfig) URL() string {
-	//url := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s", storage.Username, storage.Password, storage.Host, storage.Port, storage.Database)
 
 	return fmt.Sprintf(
 		"%s://%s:%s@%s:%s/%s",
@@ -54,7 +53,6 @@ func MustLoad() *Config {
 		log.Fatal("CONFIG_PATH is not set")
 	}
 
-	// check if file exists
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		log.Fatalf("config file does not exist: %s", configPath)
 	}
