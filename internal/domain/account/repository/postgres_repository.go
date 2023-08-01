@@ -37,6 +37,10 @@ func (r *PostgresRepository) Save(ctx context.Context, entity *entity.Account) e
 		"email":    entity.Email,
 	}
 
+	if _, err := r.Get(ctx, entity.ID); err == nil {
+		return fmt.Errorf("%s: %w", op, Errors.ErrAccountExists)
+	}
+
 	if _, err := r.db.Exec(ctx, query, args); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -56,8 +60,7 @@ func (r *PostgresRepository) Get(ctx context.Context, id uint64) (*entity.Accoun
 	}
 
 	var account entity.Account
-	var err error
-	if err = pgxscan.Get(ctx, r.db, &account, query, args); err != nil {
+	if err := pgxscan.Get(ctx, r.db, &account, query, args); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, Errors.ErrAccountNotFound
 		}

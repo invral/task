@@ -2,19 +2,22 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"task/internal/domain/Errors"
 	"task/internal/domain/transaction/entity"
 )
 
 type PostgresRepository struct {
-	pool *pgxpool.Pool
+	db *pgxpool.Pool
 }
 
 func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
 	return &PostgresRepository{
-		pool: pool,
+		db: pool,
 	}
 }
 
@@ -27,13 +30,15 @@ func (r *PostgresRepository) CreateDepositTransaction(ctx context.Context, trans
 			status,
 			account_id,
 			amount,	
-			currency
+			currency,
+			to_account
 		) VALUES (
 			@id,
 			@status,
 			@account_id,
 			@amount,
-			@currency
+			@currency,
+			NULL
 		)`
 
 	args := pgx.NamedArgs{
@@ -44,7 +49,11 @@ func (r *PostgresRepository) CreateDepositTransaction(ctx context.Context, trans
 		"currency":   transaction.Currency,
 	}
 
-	if _, err := r.pool.Exec(ctx, query, args); err != nil {
+	if _, err := r.GetTransactionByID(ctx, transaction.ID); err == nil {
+		return fmt.Errorf("%s: %w", op, Errors.ErrTransactionExists)
+	}
+
+	if _, err := r.db.Exec(ctx, query, args); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -81,11 +90,35 @@ func (r *PostgresRepository) CreateWithdrawTransaction(ctx context.Context, tran
 		"to_account": transaction.ToAccount,
 	}
 
-	if _, err := r.pool.Exec(ctx, query, args); err != nil {
+	if _, err := r.db.Exec(ctx, query, args); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
 	return nil
+}
+
+func (r *PostgresRepository) GetTransactionByID(ctx context.Context, id uint64) (*entity.Transaction, error) {
+	const op = "transaction.PostgresRepository.GetTransaction"
+
+	query := `
+	SELECT id, status, account_id, amount, currency, to_account FROM transactions
+	WHERE id = @id
+	`
+
+	args := pgx.NamedArgs{
+		"id": id,
+	}
+
+	var transaction entity.Transaction
+
+	if err := pgxscan.Get(ctx, r.db, &transaction, query, args); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, Errors.ErrTransactionNotFound
+		}
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
+	return &transaction, nil
+
 }
 
 func (r *PostgresRepository) UpdateWithSuccess(ctx context.Context, id uint64) error {
@@ -101,7 +134,7 @@ func (r *PostgresRepository) UpdateWithSuccess(ctx context.Context, id uint64) e
 		"id": id,
 	}
 
-	if _, err := r.pool.Exec(ctx, query, args); err != nil {
+	if _, err := r.db.Exec(ctx, query, args); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -121,14 +154,14 @@ func (r *PostgresRepository) UpdateWithError(ctx context.Context, id uint64) err
 		"id": id,
 	}
 
-	if _, err := r.pool.Exec(ctx, query, args); err != nil {
+	if _, err := r.db.Exec(ctx, query, args); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
 	return nil
 }
 
-func (r *PostgresRepository) Delete(ctx context.Context, id uint64) error {
+func (r *PostgresRepository) DeleteTransactionByID(ctx context.Context, id uint64) error {
 	const op = "PostgresRepository.Delete"
 
 	query := `
@@ -140,7 +173,11 @@ func (r *PostgresRepository) Delete(ctx context.Context, id uint64) error {
 		"id": id,
 	}
 
-	if _, err := r.pool.Exec(ctx, query, args); err != nil {
+	if _, err := r.GetTransactionByID(ctx, id); err != nil {
+		return fmt.Errorf("%s: %w", op, Errors.ErrTransactionNotFound)
+	}
+
+	if _, err := r.db.Exec(ctx, query, args); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
