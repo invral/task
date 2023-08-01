@@ -12,4 +12,5 @@ var (
 	ErrAccountExists       = errors.New("account already exists")
 	ErrTransactionNotFound = errors.New("transaction not found")
 	ErrTransactionExists   = errors.New("transaction already exists")
+	ErrIncorrectID         = errors.New("incorrect id")
 )

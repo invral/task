@@ -1,7 +1,7 @@
 package entity
 
 type Transaction struct {
-	ID        uint64  `json:"id,omitempty"`
+	ID        uint64  `json:"id"`
 	Status    string  `json:"status,omitempty"`
 	AccountID uint64  `json:"account_id,omitempty"`
 	Amount    float64 `json:"amount,omitempty"`
