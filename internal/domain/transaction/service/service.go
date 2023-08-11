@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"task/common"
+	"task/internal/api/response"
 	"task/internal/domain/Errors"
 	"task/internal/domain/account_dto/dto"
 	rep "task/internal/domain/account_dto/repository"
@@ -18,8 +19,7 @@ type Repository_transaction interface {
 	GetTransactionByID(ctx context.Context, id uint64) (*entity.Transaction, error)
 	UpdateTransactionStatus(ctx context.Context, id uint64, status string) error
 	DeleteTransactionByID(ctx context.Context, id uint64) error
-	//UpdateBalance(ctx context.Context, id uint64, amount float64) error
-	//CheckExistsAccount(ctx context.Context, id uint64) (*dto.RegistrationCommand, error)
+	GetTransactionsByAccountID(ctx context.Context, accountID uint64) ([]*entity.Transaction, error)
 }
 
 type Repository_acc_dto interface {
@@ -27,34 +27,29 @@ type Repository_acc_dto interface {
 	CheckExistsAccount(ctx context.Context, account_id uint64) (*dto.RegistrationCommand, error)
 }
 
-const (
-	errorTransactionStatus   = "Error"
-	successTransactionStatus = "Success"
-)
-
 type Service struct {
-	rep_transaction Repository_transaction
-	rep_acc_dto     Repository_acc_dto
+	repTransaction Repository_transaction
+	repAccDto      Repository_acc_dto
 }
 
 func NewService(di *common.DependencyContainer) *Service {
 	return &Service{
-		rep_transaction: repository.NewPostgresRepository(di.Pool),
-		rep_acc_dto:     rep.NewPostgresRepository(di.Pool),
+		repTransaction: repository.NewPostgresRepository(di.Pool),
+		repAccDto:      rep.NewPostgresRepository(di.Pool),
 	}
 }
 
 func (s *Service) CreateDepositTransaction(ctx context.Context, transaction *entity.Transaction) (*entity.Transaction, error) {
 	const op = "domain/transaction.Service.CreateDepositTransaction"
 
-	_, err := s.rep_transaction.GetTransactionByID(ctx, transaction.ID)
+	_, err := s.repTransaction.GetTransactionByID(ctx, transaction.ID)
 
 	switch err {
 	case nil:
-		return nil, fmt.Errorf("%s: %w", op, Errors.ErrAccountExists)
+		return nil, fmt.Errorf("%s: %w", op, Errors.ErrTransactionExists)
 
 	case Errors.ErrTransactionNotFound:
-		err = s.rep_transaction.CreateDepositTransaction(ctx, transaction)
+		err = s.repTransaction.CreateDepositTransaction(ctx, transaction)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", op, err)
 		}
@@ -67,14 +62,14 @@ func (s *Service) CreateDepositTransaction(ctx context.Context, transaction *ent
 func (s *Service) CreateWithdrawTransaction(ctx context.Context, transaction *entity.Transaction) (*entity.Transaction, error) {
 	const op = "domain/transaction.Service.CreateWithdrawTransaction"
 
-	_, err := s.rep_transaction.GetTransactionByID(ctx, transaction.ID)
+	_, err := s.repTransaction.GetTransactionByID(ctx, transaction.ID)
 
 	switch err {
 	case nil:
 		return nil, fmt.Errorf("%s: %w", op, Errors.ErrAccountExists)
 
 	case Errors.ErrTransactionNotFound:
-		err = s.rep_transaction.CreateWithdrawTransaction(ctx, transaction)
+		err = s.repTransaction.CreateWithdrawTransaction(ctx, transaction)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", op, err)
 		}
@@ -87,7 +82,7 @@ func (s *Service) CreateWithdrawTransaction(ctx context.Context, transaction *en
 func (s *Service) GetTransactionByID(ctx context.Context, id uint64) (*entity.Transaction, error) {
 	const op = "domain/transaction.Service.GetTransactionByID"
 
-	transaction, err := s.rep_transaction.GetTransactionByID(ctx, id)
+	transaction, err := s.repTransaction.GetTransactionByID(ctx, id)
 	if errors.Is(err, Errors.ErrTransactionNotFound) {
 		return nil, fmt.Errorf("%s: %w", op, Errors.ErrTransactionNotFound)
 	}
@@ -97,11 +92,49 @@ func (s *Service) GetTransactionByID(ctx context.Context, id uint64) (*entity.Tr
 	return transaction, nil
 }
 
-// TODO make transaction status changing
+func (s *Service) GetFrozenBalanceByAccountID(ctx context.Context, accountID uint64) (float64, error) {
+	const op = "domain/transaction.Service.GetTransactionsByAccountID"
+
+	transactions, err := s.repTransaction.GetTransactionsByAccountID(ctx, accountID)
+	if errors.Is(err, Errors.ErrTransactionNotFound) {
+		return 0, fmt.Errorf("%s: %w", op, Errors.ErrTransactionNotFound)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", op, err)
+	}
+
+	accountDto, err := s.repAccDto.CheckExistsAccount(ctx, accountID)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", op, err)
+	}
+
+	var total float64
+
+	for _, transaction := range transactions {
+		if transaction.Status == response.StatusCreated {
+			amount, err := common.ValidateCurrency(transaction.Currency, accountDto.Currency, transaction.Amount)
+			if err != nil {
+				return 0, fmt.Errorf("%s: %w", op, err)
+			}
+			switch {
+			case transaction.ToAccount == 0:
+				total += amount
+
+			case transaction.ToAccount > 0:
+				total -= amount
+			default:
+				return 0, fmt.Errorf("%s: %w", op, err)
+			}
+
+		}
+	}
+	return total, nil
+}
+
 func (s *Service) UpdateTransactionStatus(ctx context.Context, id uint64) error {
 	const op = "domain/transaction.Service.UpdateTransactionStatus"
 
-	transaction, err := s.rep_transaction.GetTransactionByID(ctx, id)
+	transaction, err := s.repTransaction.GetTransactionByID(ctx, id)
 	if errors.Is(err, Errors.ErrTransactionNotFound) {
 		return fmt.Errorf("%s: %w", op, Errors.ErrTransactionNotFound)
 	}
@@ -109,7 +142,7 @@ func (s *Service) UpdateTransactionStatus(ctx context.Context, id uint64) error 
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	accountDto, err := s.rep_acc_dto.CheckExistsAccount(ctx, transaction.AccountID)
+	accountDto, err := s.repAccDto.CheckExistsAccount(ctx, transaction.AccountID)
 	if errors.Is(err, Errors.ErrAccountNotFound) {
 		return fmt.Errorf("%s: %w", op, Errors.ErrAccountNotFound)
 	}
@@ -124,27 +157,27 @@ func (s *Service) UpdateTransactionStatus(ctx context.Context, id uint64) error 
 
 	switch {
 	case transaction.ToAccount == 0:
-		if err = s.rep_acc_dto.UpdateBalance(ctx, transaction.AccountID, accountDto.Balance+amount); err != nil {
+		if err = s.repAccDto.UpdateBalance(ctx, transaction.AccountID, accountDto.Balance+amount); err != nil {
 			return fmt.Errorf("%s: %w", op, err)
 		}
-		if err = s.rep_transaction.UpdateTransactionStatus(ctx, transaction.ID, successTransactionStatus); err != nil {
+		if err = s.repTransaction.UpdateTransactionStatus(ctx, transaction.ID, response.StatusSuccess); err != nil {
 			return fmt.Errorf("%s: %w", op, err)
 		}
 	case transaction.ToAccount > 0:
 		if amount > accountDto.Balance {
-			if err = s.rep_transaction.UpdateTransactionStatus(ctx, transaction.ID, errorTransactionStatus); err != nil {
+			if err = s.repTransaction.UpdateTransactionStatus(ctx, transaction.ID, response.StatusError); err != nil {
 				return fmt.Errorf("%s: %w", op, err)
 			}
 			return fmt.Errorf("%s: %w", op, Errors.ErrNegativeBalance)
 		}
-		if err = s.rep_acc_dto.UpdateBalance(ctx, transaction.AccountID, accountDto.Balance-amount); err != nil {
+		if err = s.repAccDto.UpdateBalance(ctx, transaction.AccountID, accountDto.Balance-amount); err != nil {
 			return fmt.Errorf("%s: %w", op, err)
 		}
-		if err = s.rep_transaction.UpdateTransactionStatus(ctx, transaction.ID, successTransactionStatus); err != nil {
+		if err = s.repTransaction.UpdateTransactionStatus(ctx, transaction.ID, response.StatusSuccess); err != nil {
 			return fmt.Errorf("%s: %w", op, err)
 		}
 	default:
-		if err = s.rep_transaction.UpdateTransactionStatus(ctx, transaction.ID, errorTransactionStatus); err != nil {
+		if err = s.repTransaction.UpdateTransactionStatus(ctx, transaction.ID, response.StatusError); err != nil {
 			return fmt.Errorf("%s: %w", op, err)
 		}
 		return fmt.Errorf("%s: %w", op, Errors.ErrIncorrectID)
@@ -156,7 +189,7 @@ func (s *Service) UpdateTransactionStatus(ctx context.Context, id uint64) error 
 func (s *Service) DeleteTransactionByID(ctx context.Context, id uint64) error {
 	const op = "domain/transaction.Service.DeleteTransactionByID"
 
-	err := s.rep_transaction.DeleteTransactionByID(ctx, id)
+	err := s.repTransaction.DeleteTransactionByID(ctx, id)
 	if errors.Is(err, Errors.ErrTransactionNotFound) {
 		return fmt.Errorf("%s: %w", op, Errors.ErrTransactionNotFound)
 	}

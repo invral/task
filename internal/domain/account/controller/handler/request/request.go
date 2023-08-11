@@ -4,8 +4,8 @@ import (
 	"github.com/go-chi/render"
 	"net/http"
 	"task/internal/api/response"
-	"task/internal/domain/account/dto"
 	"task/internal/domain/account/entity"
+	"task/internal/domain/account_dto/dto"
 )
 
 type Request struct {
