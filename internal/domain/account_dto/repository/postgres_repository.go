@@ -29,12 +29,11 @@ func (r *PostgresRepository) UpdateBalance(ctx context.Context, account_id uint6
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	query := `
+	var query = `
 		UPDATE account
-			SET balance = @balance,
-		WHERE id = @id;
+		SET balance = @balance
+		WHERE id = @id
 	`
-
 	args := pgx.NamedArgs{
 		"id":      account_id,
 		"balance": balance,

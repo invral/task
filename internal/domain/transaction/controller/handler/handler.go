@@ -46,7 +46,7 @@ func (h *Handlers) Deposit(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	if _, err := h.service.CreateDepositTransaction(ctx, &transaction); err != nil {
-		render.JSON(w, r, response.Response{Error: "failed to save transaction", Status: "error"})
+		render.JSON(w, r, response.Response{Error: "failed to create deposit transaction", Status: "error"})
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -74,7 +74,7 @@ func (h *Handlers) Withdraw(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	if _, err := h.service.CreateWithdrawTransaction(ctx, &transaction); err != nil {
-		render.JSON(w, r, response.Response{Error: "failed to save transaction", Status: "error"})
+		render.JSON(w, r, response.Response{Error: "failed to create withdraw transaction", Status: "error"})
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -95,7 +95,7 @@ func (h *Handlers) GetTransactionByID(w http.ResponseWriter, r *http.Request) er
 
 	transaction, err := h.service.GetTransactionByID(ctx, id)
 	if err != nil {
-		render.JSON(w, r, response.Response{Error: "failed to get account", Status: "error"})
+		render.JSON(w, r, response.Response{Error: "failed to get transaction by id", Status: "error"})
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -110,13 +110,7 @@ func (h *Handlers) UpdateTransactionStatus(w http.ResponseWriter, r *http.Reques
 
 	var id uint64
 
-	err := render.DecodeJSON(r.Body, &id)
-
-	if errors.Is(err, io.EOF) {
-		render.JSON(w, r, response.Response{Error: "empty request", Status: "error"})
-		return fmt.Errorf("%s: %w", op, err)
-	}
-
+	id, err := GetIDFromRequest(r, "transaction_id")
 	if err != nil {
 		render.JSON(w, r, response.Response{Error: "failed to decode request", Status: "error"})
 		return fmt.Errorf("%s: %w", op, err)
@@ -124,7 +118,7 @@ func (h *Handlers) UpdateTransactionStatus(w http.ResponseWriter, r *http.Reques
 
 	err = h.service.UpdateTransactionStatus(ctx, id)
 	if err != nil {
-		render.JSON(w, r, response.Response{Error: "failed to update transaction status", Status: "error"})
+		render.JSON(w, r, response.Response{Error: "failed to update status of transaction", Status: "error"})
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -160,25 +154,19 @@ func (h *Handlers) GetFrozenBalanceByID(w http.ResponseWriter, r *http.Request) 
 
 	var id uint64
 
-	err := render.DecodeJSON(r.Body, &id)
-
-	if errors.Is(err, io.EOF) {
-		render.JSON(w, r, response.Response{Error: "empty request", Status: "error"})
-		return fmt.Errorf("%s: %w", op, err)
-	}
-
+	id, err := GetIDFromRequest(r, "account_id")
 	if err != nil {
 		render.JSON(w, r, response.Response{Error: "failed to decode request", Status: "error"})
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	balance, err := h.service.GetFrozenBalanceByAccountID(ctx, id)
+	accountDto, err := h.service.GetFrozenBalanceByAccountID(ctx, id)
 	if err != nil {
 		render.JSON(w, r, response.Response{Error: "failed to get frozen balance", Status: "error"})
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	request.ResponseFrozenBalanceOK(w, r, id, balance)
+	request.ResponseFrozenBalanceOK(w, r, accountDto)
 
 	return nil
 }

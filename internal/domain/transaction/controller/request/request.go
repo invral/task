@@ -4,6 +4,7 @@ import (
 	"github.com/go-chi/render"
 	"net/http"
 	"task/internal/api/response"
+	"task/internal/domain/account_dto/dto"
 	"task/internal/domain/transaction/entity"
 )
 
@@ -29,16 +30,14 @@ func ResponseOK(w http.ResponseWriter, r *http.Request) {
 
 type ResponseFrozenBalance struct {
 	response.Response
-	ID      uint64  `json:"id"`
-	Balance float64 `json:"balance"`
+	dto.RegistrationCommand
 }
 
-func ResponseFrozenBalanceOK(w http.ResponseWriter, r *http.Request, id uint64, balance float64) {
+func ResponseFrozenBalanceOK(w http.ResponseWriter, r *http.Request, dto *dto.RegistrationCommand) {
 	render.JSON(w, r, ResponseFrozenBalance{
 		Response: response.Response{
 			Status: response.StatusSuccess,
 		},
-		ID:      id,
-		Balance: balance,
+		RegistrationCommand: *dto,
 	})
 }

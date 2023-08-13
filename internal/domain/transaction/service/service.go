@@ -92,20 +92,20 @@ func (s *Service) GetTransactionByID(ctx context.Context, id uint64) (*entity.Tr
 	return transaction, nil
 }
 
-func (s *Service) GetFrozenBalanceByAccountID(ctx context.Context, accountID uint64) (float64, error) {
+func (s *Service) GetFrozenBalanceByAccountID(ctx context.Context, accountID uint64) (*dto.RegistrationCommand, error) {
 	const op = "domain/transaction.Service.GetTransactionsByAccountID"
 
 	transactions, err := s.repTransaction.GetTransactionsByAccountID(ctx, accountID)
 	if errors.Is(err, Errors.ErrTransactionNotFound) {
-		return 0, fmt.Errorf("%s: %w", op, Errors.ErrTransactionNotFound)
+		return nil, fmt.Errorf("%s: %w", op, Errors.ErrTransactionNotFound)
 	}
 	if err != nil {
-		return 0, fmt.Errorf("%s: %w", op, err)
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
 	accountDto, err := s.repAccDto.CheckExistsAccount(ctx, accountID)
 	if err != nil {
-		return 0, fmt.Errorf("%s: %w", op, err)
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
 	var total float64
@@ -114,7 +114,7 @@ func (s *Service) GetFrozenBalanceByAccountID(ctx context.Context, accountID uin
 		if transaction.Status == response.StatusCreated {
 			amount, err := common.ValidateCurrency(transaction.Currency, accountDto.Currency, transaction.Amount)
 			if err != nil {
-				return 0, fmt.Errorf("%s: %w", op, err)
+				return nil, fmt.Errorf("%s: %w", op, err)
 			}
 			switch {
 			case transaction.ToAccount == 0:
@@ -123,12 +123,14 @@ func (s *Service) GetFrozenBalanceByAccountID(ctx context.Context, accountID uin
 			case transaction.ToAccount > 0:
 				total -= amount
 			default:
-				return 0, fmt.Errorf("%s: %w", op, err)
+				return nil, fmt.Errorf("%s: %w", op, err)
 			}
 
 		}
 	}
-	return total, nil
+	accountDto.Balance = total
+
+	return accountDto, nil
 }
 
 func (s *Service) UpdateTransactionStatus(ctx context.Context, id uint64) error {

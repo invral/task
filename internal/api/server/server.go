@@ -10,18 +10,21 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
 	"golang.org/x/exp/slog"
-	"task/internal/domain/account/controller/handler"
+	acc "task/internal/domain/account/controller/handler"
+	trans "task/internal/domain/transaction/controller/handler"
 )
 
 const JSONContentType = "application/json"
 
 type Server struct {
-	account *handler.Handlers
+	account     *acc.Handlers
+	transaction *trans.Handlers
 }
 
 func NewServer(di *common.DependencyContainer) *Server {
 	return &Server{
-		account: handler.NewHandlers(di),
+		account:     acc.NewHandlers(di),
+		transaction: trans.NewHandlers(di),
 	}
 }
 
@@ -60,7 +63,14 @@ func (s *Server) GetHTTPHandler(logger *slog.Logger) (http.Handler, error) {
 		r.Post("/accounts/register", ErrorHandler(s.account.Register))
 		r.Get("/accounts/{account_id}", ErrorHandler(s.account.Get))
 		r.Patch("/accounts/{account_id}", ErrorHandler(s.account.Update))
-		r.Delete("/accounts/update", ErrorHandler(s.account.Delete))
+		r.Delete("/accounts/delete", ErrorHandler(s.account.Delete))
+
+		r.Post("/transaction/deposit", ErrorHandler(s.transaction.Deposit))
+		r.Post("/transaction/withdraw", ErrorHandler(s.transaction.Withdraw))
+		r.Get("/transaction/{transaction_id}", ErrorHandler(s.transaction.GetTransactionByID))
+		r.Patch("/transaction/{transaction_id}", ErrorHandler(s.transaction.UpdateTransactionStatus))
+		r.Delete("/transaction/{transaction_id}", ErrorHandler(s.transaction.DeleteTransactionByID))
+		r.Get("/transaction/frozen/{account_id}", ErrorHandler(s.transaction.GetFrozenBalanceByID))
 	})
 
 	return r, nil
@@ -69,7 +79,7 @@ func (s *Server) GetHTTPHandler(logger *slog.Logger) (http.Handler, error) {
 func ErrorHandler(handler func(w http.ResponseWriter, r *http.Request) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := handler(w, r); err != nil {
-			render.JSON(w, r, response.Response{Error: "ErrorHandler error", Status: "error"})
+			render.JSON(w, r, response.Response{Error: "Internal server error in handlers func", Status: "error"})
 		}
 	}
 }

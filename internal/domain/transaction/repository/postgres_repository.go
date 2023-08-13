@@ -26,7 +26,7 @@ func (r *PostgresRepository) CreateDepositTransaction(ctx context.Context, trans
 	const op = "PostgresRepository.CreateDepositTransaction"
 
 	query := `
-		INSERT INTO transactions (
+		INSERT INTO transaction (
 			id,
 			status,
 			account_id,
@@ -39,7 +39,7 @@ func (r *PostgresRepository) CreateDepositTransaction(ctx context.Context, trans
 			@account_id,
 			@amount,
 			@currency,
-			NULL
+			@to_account
 		)`
 
 	args := pgx.NamedArgs{
@@ -48,6 +48,7 @@ func (r *PostgresRepository) CreateDepositTransaction(ctx context.Context, trans
 		"account_id": transaction.AccountID,
 		"amount":     transaction.Amount,
 		"currency":   transaction.Currency,
+		"to_account": 0,
 	}
 
 	if _, err := r.GetTransactionByID(ctx, transaction.ID); err == nil {
@@ -65,7 +66,7 @@ func (r *PostgresRepository) CreateWithdrawTransaction(ctx context.Context, tran
 	const op = "PostgresRepository.CreateWithdrawTransaction"
 
 	query := `
-		INSERT INTO transactions (
+		INSERT INTO transaction (
 			id,
 			status,
 			account_id,
@@ -78,7 +79,7 @@ func (r *PostgresRepository) CreateWithdrawTransaction(ctx context.Context, tran
 			@status,
 			@account_id,
 			@amount,
-			@currency
+			@currency,
 			@to_account
 		)`
 
@@ -102,7 +103,7 @@ func (r *PostgresRepository) GetTransactionByID(ctx context.Context, id uint64) 
 	const op = "transaction.PostgresRepository.GetTransaction"
 
 	query := `
-	SELECT id, status, account_id, amount, currency, to_account FROM transactions
+	SELECT id, status, account_id, amount, currency, to_account FROM transaction
 	WHERE id = @id
 	`
 
@@ -126,7 +127,7 @@ func (r *PostgresRepository) UpdateTransactionStatus(ctx context.Context, id uin
 	const op = "PostgresRepository.UpdateWithSuccess"
 
 	query := `
-		UPDATE transactions
+		UPDATE transaction
 		SET status = @status
 		WHERE id = @id
 	`
@@ -154,7 +155,7 @@ func (r *PostgresRepository) DeleteTransactionByID(ctx context.Context, id uint6
 	const op = "PostgresRepository.Delete"
 
 	query := `
-		DELETE FROM transactions
+		DELETE FROM transaction
 		WHERE id = @id
 	`
 
@@ -177,7 +178,7 @@ func (r *PostgresRepository) GetTransactionsByAccountID(ctx context.Context, acc
 	const op = "PostgresRepository.GetTransactionsByAccountID"
 
 	query := `
-		SELECT id, status, account_id, amount, currency, to_account FROM transactions
+		SELECT id, status, account_id, amount, currency, to_account FROM transaction
 		WHERE account_id = @account_id
 	`
 
