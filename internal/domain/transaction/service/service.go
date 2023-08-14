@@ -13,6 +13,7 @@ import (
 	"task/internal/domain/transaction/repository"
 )
 
+//go:generate go run github.com/vektra/mockery/v2@v2.32.4 --name=Repository_transaction
 type Repository_transaction interface {
 	CreateDepositTransaction(ctx context.Context, transaction *entity.Transaction) error
 	CreateWithdrawTransaction(ctx context.Context, transaction *entity.Transaction) error
@@ -22,6 +23,7 @@ type Repository_transaction interface {
 	GetTransactionsByAccountID(ctx context.Context, accountID uint64) ([]*entity.Transaction, error)
 }
 
+//go:generate go run github.com/vektra/mockery/v2@v2.32.4 --name=Repository_acc_dto
 type Repository_acc_dto interface {
 	UpdateBalance(ctx context.Context, account_id uint64, balance float64) error
 	CheckExistsAccount(ctx context.Context, account_id uint64) (*dto.RegistrationCommand, error)
